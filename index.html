@@ -1,0 +1,703 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<!-- CSP : site 100% autonome — aucun chargement externe autorisé.
+     Les scripts et styles inline sont nécessaires (fichier HTML unique). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; manifest-src 'self'; worker-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'" />
+<title>Lecture de notes 🎵</title>
+
+<!-- ===== PWA : installation sur l'écran d'accueil (iOS et Android) ===== -->
+<meta name="description" content="Quiz de lecture de notes en clé de Sol et de Fa — trouve un maximum de notes en 1 minute." />
+<meta name="theme-color" content="#475569" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Lecture de notes" />
+<!-- Fichiers compagnons à déposer à côté de index.html : icon-180.png,
+     icon-192.png, icon-512.png et manifest.webmanifest (voir le Kit PWA). -->
+<link rel="apple-touch-icon" href="icon-180.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+<link rel="manifest" href="manifest.webmanifest" />
+<style>
+  :root {
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --ink: #1e293b;
+    --bg1: #eef2ff;
+    --bg2: #fce7f3;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100dvh;
+    display: flex;
+    justify-content: center;
+    background: linear-gradient(160deg, var(--bg1), var(--bg2));
+    color: var(--ink);
+    padding: max(10px, env(safe-area-inset-top)) 10px max(12px, env(safe-area-inset-bottom));
+    touch-action: manipulation;
+  }
+  .app { width: 100%; max-width: 430px; display: flex; flex-direction: column; }
+
+  /* ---------- Écrans ---------- */
+  .screen { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .hidden { display: none !important; }
+
+  .hero {
+    text-align: center;
+    margin-top: 8vh;
+  }
+  .hero .logo { font-size: 3.2rem; margin: 0; }
+  .hero h1 { font-size: 1.7rem; margin: 8px 0 6px; }
+  .hero p { margin: 0 auto; max-width: 34ch; color: #475569; line-height: 1.5; }
+
+  /* ---------- Barre du haut ---------- */
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .chip {
+    background: #fff; border-radius: 999px; padding: 4px 12px;
+    font-weight: 700; font-size: .85rem; box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    white-space: nowrap;
+  }
+  .chip.time-low { background: #fee2e2; color: #dc2626; animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: .55; } }
+  .progress {
+    height: 6px; border-radius: 999px; background: #e2e8f0; overflow: hidden;
+  }
+  .progress > div {
+    height: 100%; width: 0%; border-radius: 999px;
+    background: linear-gradient(90deg, #6366f1, #ec4899);
+    transition: width .2s linear;
+  }
+
+  /* ---------- Portée ---------- */
+  .card {
+    background: #fff; border-radius: 16px; padding: 8px 8px 4px;
+    box-shadow: 0 6px 18px rgba(79, 70, 229, .12);
+    display: flex; justify-content: center;
+  }
+  .card svg { width: 100%; max-width: 240px; height: auto; display: block; }
+  /* ---------- Indicateur de clé (collé à gauche de la portée) ---------- */
+  .staff-row {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .clef-indicator {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 2px; background: #fff; border-radius: 20px; padding: 14px 12px 10px;
+    box-shadow: 0 6px 18px rgba(79, 70, 229, .18); border: 2px solid #eef2ff;
+    flex: 0 0 auto;
+  }
+  .clef-glyph {
+    font-family: "Bravura", "Noto Music", "Segoe UI Symbol", "Apple Symbols", serif;
+    font-size: 3.4rem; line-height: 1; color: #1e293b; display: block;
+  }
+  .clef-glyph.pop { animation: pop .3s ease; }
+  .clef-name { font-size: .78rem; font-weight: 800; color: #4338ca; letter-spacing: .04em; }
+
+  .hint-row { display: flex; justify-content: center; }
+  .hint {
+    border: none; border-radius: 999px; background: #e2e8f0; color: #334155;
+    font-weight: 700; font-size: .85rem; padding: 6px 14px;
+    display: inline-flex; align-items: center; gap: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08); cursor: pointer;
+  }
+  .hint:active { transform: scale(.96); }
+  .hint:disabled { opacity: .45; cursor: default; transform: none; }
+
+  .icon-btn {
+    border: none; border-radius: 999px; background: #e2e8f0; color: #334155;
+    width: 36px; height: 30px; font-size: .95rem; padding: 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: transform .08s ease;
+  }
+  .icon-btn:active { transform: scale(.92); }
+  .icon-btn:disabled { opacity: .45; cursor: default; transform: none; }
+  #screen-quiz.paused .card,
+  #screen-quiz.paused .answers,
+  #screen-quiz.paused .clef-indicator { opacity: .55; }
+
+  /* ---------- Mode micro ---------- */
+  .mic-row { display: flex; }
+  .mic-btn {
+    border: none; border-radius: 16px; background: #64748b; color: #fff;
+    font-size: 1.05rem; font-weight: 800; min-height: 62px; width: 100%;
+    box-shadow: 0 3px 10px rgba(0,0,0,.14); cursor: pointer;
+    text-shadow: 0 1px 2px rgba(0,0,0,.25);
+    transition: transform .08s ease;
+  }
+  .mic-btn:active { transform: scale(.97); }
+  .mic-btn:disabled { opacity: .45; cursor: default; }
+  .mic-btn.listening { background: #475569; animation: mic-pulse 1.2s ease-in-out infinite; }
+  @keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(71, 85, 105, .45); }
+    50% { box-shadow: 0 0 0 10px rgba(71, 85, 105, 0); }
+  }
+  .secondary {
+    border: none; border-radius: 999px; padding: 13px 36px;
+    font-size: 1rem; font-weight: 800; color: #334155; cursor: pointer;
+    background: #e2e8f0; box-shadow: 0 4px 14px rgba(71, 85, 105, .25);
+    transition: transform .1s;
+  }
+  .secondary:active { transform: scale(.95); }
+  .secondary:disabled { opacity: .5; cursor: default; }
+
+  /* ---------- Retour ---------- */
+  .feedback {
+    min-height: 20px; text-align: center; font-weight: 700; font-size: .9rem;
+    transition: opacity .2s;
+  }
+  .feedback.ok { color: #16a34a; }
+  .feedback.ko { color: #dc2626; }
+
+  /* ---------- Boutons de notes ---------- */
+  .answers {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px;
+  }
+  .note-btn {
+    border: none; border-radius: 12px; background: #64748b; color: #fff; font-size: .95rem;
+    font-weight: 800; letter-spacing: .02em; min-height: 44px;
+    box-shadow: 0 3px 10px rgba(0,0,0,.14); cursor: pointer;
+    text-shadow: 0 1px 2px rgba(0,0,0,.25);
+    transition: transform .08s ease, filter .15s;
+  }
+  .note-btn:active { transform: scale(.94); }
+  .note-btn:disabled { opacity: .45; cursor: default; transform: none; }
+
+  @keyframes pop { 50% { transform: scale(1.12); } }
+
+  /* ---------- Écran final ---------- */
+  .end { text-align: center; margin-top: 6vh; }
+  .end .medal { font-size: 4rem; margin: 0; }
+  .end h2 { font-size: 1.6rem; margin: 10px 0; }
+  .end .score-big { font-size: 2.2rem; font-weight: 900; margin: 2px 0; }
+  .end p { color: #475569; margin: 4px 0 18px; }
+
+  .primary {
+    border: none; border-radius: 999px; padding: 13px 36px;
+    font-size: 1rem; font-weight: 800; color: #fff; cursor: pointer;
+    background: #475569;
+    box-shadow: 0 6px 18px rgba(71, 85, 105, .4);
+    transition: transform .1s;
+  }
+  .primary:active { transform: scale(.95); }
+
+  /* ---------- Pied de page ---------- */
+  .footer {
+    margin-top: auto; padding-top: 14px; text-align: center;
+    font-size: .72rem; color: #94a3b8; line-height: 1.4;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Écran d'accueil -->
+  <section id="screen-start" class="screen">
+    <div class="hero">
+      <p class="logo">🎵</p>
+      <h1>Lecture de notes</h1>
+      <p>Lis la note affichée sur la portée&nbsp;! La clé en cours (Sol ou Fa, choisie au hasard) est indiquée à gauche de l'écran, et les notes couvrent 2 octaves. Trouve un maximum de bonnes réponses en 1 minute&nbsp;! Réponds avec les boutons… ou à voix haute avec le micro 🎤.</p>
+    </div>
+    <div style="text-align:center; margin-top:24px; display:flex; flex-direction:column; align-items:center; gap:12px;">
+      <button class="primary" id="btn-start">Commencer 🎼</button>
+      <button class="secondary" id="btn-start-mic">Commencer avec le micro 🎤</button>
+    </div>
+  </section>
+
+  <!-- Écran de jeu -->
+  <section id="screen-quiz" class="screen hidden">
+    <div class="topbar">
+      <span class="chip" id="time">⏱ 1:00</span>
+      <span class="chip">⭐ Score&nbsp;: <span id="score">0</span></span>
+      <button class="icon-btn" id="btn-pause" aria-label="Mettre en pause">⏸</button>
+      <button class="icon-btn" id="btn-stop" aria-label="Arrêter la partie">⏹</button>
+    </div>
+    <div class="progress"><div id="progress-fill"></div></div>
+
+    <div class="staff-row">
+      <div class="clef-indicator" id="clef-indicator">
+        <span class="clef-glyph" id="clef-glyph">𝄞</span>
+        <span class="clef-name" id="clef-name">Sol</span>
+      </div>
+      <div class="card" id="staff-card"></div>
+    </div>
+
+    <div class="hint-row">
+      <button class="hint" id="btn-listen">🔊 Écouter la note</button>
+    </div>
+
+    <div class="feedback" id="feedback">&nbsp;</div>
+
+    <div class="mic-row hidden" id="mic-row">
+      <button class="mic-btn" id="btn-mic">🎤 Appuie et dis la note</button>
+    </div>
+
+    <div class="answers" id="answers"></div>
+  </section>
+
+  <!-- Écran final -->
+  <section id="screen-end" class="screen hidden">
+    <div class="end">
+      <p class="medal" id="medal">🏆</p>
+      <h2 id="end-title">Bravo !</h2>
+      <div class="score-big" id="end-score">0</div>
+      <p id="end-best">Meilleur score&nbsp;: 0</p>
+      <button class="primary" id="btn-replay">Rejouer 🔁</button>
+    </div>
+  </section>
+
+  <!-- Note de bas de page -->
+  <footer class="footer">✨ Site généré avec l'aide de Vibe, l'assistant IA de Mistral AI.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ================= Données ================= */
+  var DURATION = 60; // secondes
+
+  // Géométrie de la portée : lignes à y = 60, 90, 120, 150, 180 (interligne 30).
+  var TOP_LINE = 60, BOTTOM_LINE = 180, LINE_GAP = 30, STEP = 15;
+  var NAMES = ["Do", "Ré", "Mi", "Fa", "Sol", "La", "Si"];
+  var SEMITONES = [0, 2, 4, 5, 7, 9, 11]; // tons/demi-tons au-dessus du Do
+  var SUB = { 2: "\u2082", 3: "\u2083", 4: "\u2084", 5: "\u2085" };
+
+  // Construction des notes sur 2 octaves pour chaque clé :
+  //  - clé de Sol : Do4 (sous la portée) → Si5 (au-dessus)
+  //  - clé de Fa  : Do2 (sous la portée) → Si3 (au-dessus)
+  function buildNotes() {
+    var sol = [], fa = [];
+    var c4 = 261.63, c2 = 65.41;
+    for (var i = 0; i < 14; i++) {
+      var idx = i % 7, up = i < 7 ? 0 : 12;
+      sol.push({
+        clef: "sol", label: NAMES[idx], octave: i < 7 ? 4 : 5,
+        y: 210 - STEP * i,
+        freq: c4 * Math.pow(2, (SEMITONES[idx] + up) / 12)
+      });
+      fa.push({
+        clef: "fa", label: NAMES[idx], octave: i < 7 ? 2 : 3,
+        y: 240 - STEP * i,
+        freq: c2 * Math.pow(2, (SEMITONES[idx] + up) / 12)
+      });
+    }
+    return { sol: sol, fa: fa };
+  }
+  var NOTES = buildNotes();
+  var ALL = NOTES.sol.concat(NOTES.fa);
+
+  var state = {
+    note: null, score: 0, answered: false, running: false, paused: false,
+    mode: "buttons", listening: false,
+    endTime: 0, remaining: 0, tickId: null, prev: null
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ================= Audio (Web Audio API) ================= */
+  var audioCtx = null;
+  function playFreq(freq) {
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      audioCtx = audioCtx || new AC();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      var t = audioCtx.currentTime;
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.25, t + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(t);
+      osc.stop(t + 1.2);
+    } catch (e) { /* audio indisponible : on ignore */ }
+  }
+
+  /* ================= Reconnaissance vocale (Web Speech API) ================= */
+  var recognition = null;
+
+  // Mots reconnus (après normalisation) associés aux notes
+  var WORD_TO_NOTE = {
+    "do": "Do", "doh": "Do", "dos": "Do", "deau": "Do", "dau": "Do",
+    "re": "Ré", "rez": "Ré",
+    "mi": "Mi", "mie": "Mi", "my": "Mi",
+    "fa": "Fa", "fas": "Fa", "far": "Fa",
+    "sol": "Sol", "solle": "Sol",
+    "la": "La", "lah": "La", "las": "La",
+    "si": "Si", "six": "Si", "scie": "Si", "cis": "Si", "sie": "Si"
+  };
+
+  function normalizeSpeech(text) {
+    return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+
+  function matchNote(strings) {
+    for (var s = 0; s < strings.length; s++) {
+      var tokens = strings[s].split(/[^a-z]+/);
+      for (var t = 0; t < tokens.length; t++) {
+        var note = WORD_TO_NOTE[tokens[t]];
+        if (note) return note;
+      }
+    }
+    return null;
+  }
+
+  function setMicListening(on) {
+    state.listening = on;
+    var b = $("btn-mic");
+    b.classList.toggle("listening", on);
+    b.textContent = on ? "🎙️ J'écoute… dis la note !" : "🎤 Appuie et dis la note";
+  }
+
+  function startListening() {
+    if (!state.running || state.paused || !recognition || state.listening) return;
+    try { recognition.start(); setMicListening(true); }
+    catch (e) { /* déjà en écoute */ }
+  }
+
+  function stopListening() {
+    if (recognition && state.listening) {
+      try { recognition.stop(); } catch (e) {}
+      setMicListening(false);
+    }
+  }
+
+  // Relance automatiquement l'écoute pour la note suivante
+  function micRestart() {
+    setTimeout(function () {
+      if (state.running && !state.paused && state.mode === "mic" && !state.listening) {
+        startListening();
+      }
+    }, 400);
+  }
+
+  function initRecognition() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return null;
+    var rec = new SR();
+    rec.lang = "fr-FR";
+    rec.interimResults = false;
+    rec.maxAlternatives = 3;
+    rec.continuous = false;
+    rec.onresult = function (e) {
+      if (!state.running || state.paused) return;
+      // On rassemble toutes les alternatives reconnues, puis on cherche une note
+      var strings = [];
+      for (var i = 0; i < e.results[0].length; i++) {
+        strings.push(normalizeSpeech(e.results[0][i].transcript));
+      }
+      var label = matchNote(strings);
+      if (label) {
+        answer(label);
+        micRestart();
+      } else {
+        $("feedback").textContent = "🤔 Je n'ai pas compris — redis la note";
+        $("feedback").className = "feedback";
+      }
+    };
+    rec.onerror = function (ev) {
+      setMicListening(false);
+      if (ev && (ev.error === "not-allowed" || ev.error === "service-not-allowed")) {
+        $("feedback").textContent = "⛔ Accès au micro refusé";
+      } else if (ev && ev.error === "no-speech") {
+        $("feedback").textContent = "🤭 Rien entendu — appuie et redis";
+      }
+    };
+    rec.onend = function () { setMicListening(false); };
+    return rec;
+  }
+
+  /* ================= Dessin de la portée (SVG) ================= */
+
+  // Lignes supplémentaires entre la note et la portée.
+  function ledgerLines(y) {
+    var out = [], p;
+    if (y > BOTTOM_LINE) {
+      for (p = BOTTOM_LINE + LINE_GAP; p < y; p += LINE_GAP) out.push(p);
+      if ((y - TOP_LINE) % LINE_GAP === 0) out.push(y);
+    } else if (y < TOP_LINE) {
+      for (p = TOP_LINE - LINE_GAP; p > y; p -= LINE_GAP) out.push(p);
+      if ((y - TOP_LINE) % LINE_GAP === 0) out.push(y);
+    }
+    return out;
+  }
+
+  function staffSVG(note) {
+    var NS = "http://www.w3.org/2000/svg";
+    var x = 122; // position horizontale de la note
+
+    var lines = [60, 90, 120, 150, 180].map(function (y) {
+      return '<line x1="30" y1="' + y + '" x2="192" y2="' + y + '" stroke="#334155" stroke-width="2"/>';
+    }).join("");
+
+    // Lignes supplémentaires éventuelles
+    var ledgers = ledgerLines(note.y).map(function (ly) {
+      return '<line x1="' + (x - 26) + '" y1="' + ly + '" x2="' + (x + 26) + '" y2="' + ly + '" stroke="#334155" stroke-width="2.5"/>';
+    }).join("");
+
+    // Hampe : vers le bas à partir de la ligne médiane, sinon vers le haut
+    var stem;
+    if (note.y <= 120) {
+      stem = '<line x1="' + (x - 13) + '" y1="' + (note.y + 5) + '" x2="' + (x - 13) + '" y2="' + (note.y + 85) + '" stroke="#1e293b" stroke-width="3" stroke-linecap="round"/>';
+    } else {
+      stem = '<line x1="' + (x + 13) + '" y1="' + (note.y - 5) + '" x2="' + (x + 13) + '" y2="' + (note.y - 85) + '" stroke="#1e293b" stroke-width="3" stroke-linecap="round"/>';
+    }
+
+    // Tête de note
+    var head =
+      '<ellipse cx="' + x + '" cy="' + note.y + '" rx="13" ry="9.5" fill="#1e293b" transform="rotate(-18 ' + x + " " + note.y + ')"/>';
+
+    return (
+      '<svg viewBox="16 0 192 260" xmlns="' + NS + '" role="img" aria-label="Portée avec une note à deviner">' +
+      lines + ledgers + stem + head + "</svg>"
+    );
+  }
+
+  /* ================= Logique du jeu ================= */
+  function showScreen(name) {
+    ["start", "quiz", "end"].forEach(function (s) {
+      $("screen-" + s).classList.toggle("hidden", s !== name);
+    });
+    document.body.classList.toggle("quiz-on", name === "quiz");
+  }
+
+  function nextNote() {
+    // Note aléatoire parmi les 28 (2 clés × 2 octaves), sans répétition immédiate
+    var n;
+    do { n = ALL[Math.floor(Math.random() * ALL.length)]; }
+    while (n === state.prev);
+    state.prev = n;
+    return n;
+  }
+
+  function fmtTime(sec) {
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return m + ":" + (s < 10 ? "0" + s : s);
+  }
+
+  function startTimer() {
+    state.endTime = Date.now() + DURATION * 1000;
+    $("time").classList.remove("time-low");
+    state.tickId = setInterval(tick, 200);
+    tick();
+  }
+
+  function tick() {
+    var left = Math.max(0, state.endTime - Date.now());
+    var sec = Math.ceil(left / 1000);
+    $("time").textContent = "⏱ " + fmtTime(sec);
+    $("progress-fill").style.width = ((DURATION * 1000 - left) / (DURATION * 1000) * 100) + "%";
+    if (left <= 10500) $("time").classList.add("time-low");
+    if (left <= 0) endQuiz();
+  }
+
+  function resumeTimer() {
+    state.endTime = Date.now() + state.remaining;
+    state.tickId = setInterval(tick, 200);
+    tick();
+  }
+
+  /* ================= Pause / Arrêt ================= */
+  function setPlayingEnabled(on) {
+    Array.prototype.forEach.call($("answers").children, function (b) { b.disabled = !on; });
+    $("btn-listen").disabled = !on;
+    $("btn-mic").disabled = !on;
+  }
+
+  function togglePause() {
+    if (!state.running) return;
+    var screen = $("screen-quiz");
+    if (!state.paused) {
+      // Mise en pause : on mémorise le temps restant et on stoppe le chrono
+      state.remaining = Math.max(0, state.endTime - Date.now());
+      state.paused = true;
+      clearInterval(state.tickId);
+      stopListening();
+      $("btn-pause").textContent = "▶";
+      screen.classList.add("paused");
+      setPlayingEnabled(false);
+      $("feedback").textContent = "⏸ Partie en pause — appuie sur ▶ pour reprendre";
+      $("feedback").className = "feedback";
+    } else {
+      // Reprise : le chrono repart avec le temps restant
+      state.paused = false;
+      $("btn-pause").textContent = "⏸";
+      screen.classList.remove("paused");
+      setPlayingEnabled(true);
+      $("feedback").textContent = "\u00a0";
+      resumeTimer();
+    }
+  }
+
+  function startQuiz(mode) {
+    state.score = 0;
+    state.answered = false;
+    state.running = true;
+    state.paused = false;
+    state.mode = mode || "buttons";
+    state.listening = false;
+    state.prev = null;
+    $("btn-pause").textContent = "⏸";
+    $("screen-quiz").classList.remove("paused");
+    $("btn-listen").disabled = false;
+    setMicListening(false);
+    $("mic-row").classList.toggle("hidden", state.mode !== "mic");
+    $("answers").classList.toggle("hidden", state.mode === "mic");
+    $("score").textContent = "0";
+    $("progress-fill").style.width = "0%";
+    $("feedback").textContent = "\u00a0";
+    $("feedback").className = "feedback";
+    buildAnswerButtons();
+    showScreen("quiz");
+    renderQuestion();
+    startTimer();
+  }
+
+  function buildAnswerButtons() {
+    var wrap = $("answers");
+    wrap.innerHTML = "";
+    NAMES.forEach(function (label) {
+      var b = document.createElement("button");
+      b.className = "note-btn";
+      b.textContent = label;
+      b.dataset.id = label;
+      b.addEventListener("click", function () { answer(label, b); });
+      wrap.appendChild(b);
+    });
+  }
+
+  function renderQuestion() {
+    state.note = nextNote();
+    state.answered = false;
+    $("staff-card").innerHTML = staffSVG(state.note);
+
+    // Mise à jour du badge de clé, à gauche de l'écran
+    $("clef-glyph").textContent = state.note.clef === "sol" ? "\uD834\uDD1E" : "\uD834\uDD22";
+    $("clef-name").textContent = state.note.clef === "sol" ? "Sol" : "Fa";
+    var glyph = $("clef-glyph");
+    glyph.classList.remove("pop");
+    void glyph.offsetWidth;
+    glyph.classList.add("pop");
+
+    Array.prototype.forEach.call($("answers").children, function (b) {
+      b.disabled = false;
+      b.classList.remove("correct", "wrong");
+    });
+  }
+
+  function answer(label) {
+    if (state.answered || !state.running || state.paused) return;
+    state.answered = true;
+
+    var expected = state.note;
+    var fb = $("feedback");
+    var full = expected.label + SUB[expected.octave];
+    var ok = label === expected.label;
+
+    if (ok) {
+      state.score++;
+      $("score").textContent = state.score;
+      fb.textContent = "✅ Bonne réponse : " + full + " !";
+      fb.className = "feedback ok";
+      playFreq(expected.freq);
+    } else {
+      fb.textContent = "❌ Mauvaise réponse — c'était " + full;
+      fb.className = "feedback ko";
+    }
+
+    // La note suivante s'affiche immédiatement, sans attente.
+    // Le message de retour reste affiché jusqu'à la réponse suivante.
+    renderQuestion();
+
+    // En mode micro, on relance l'écoute pour la note suivante
+    if (state.mode === "mic") micRestart();
+  }
+
+  /* ================= Meilleur score ================= */
+  function loadBest() {
+    try { return parseInt(localStorage.getItem("quiz-notes-best") || "0", 10) || 0; }
+    catch (e) { return 0; }
+  }
+  function saveBest(v) {
+    try { localStorage.setItem("quiz-notes-best", String(v)); } catch (e) {}
+  }
+
+  function endQuiz() {
+    if (!state.running) return;
+    state.running = false;
+    state.paused = false;
+    clearInterval(state.tickId);
+    stopListening();
+    $("btn-pause").textContent = "⏸";
+    $("screen-quiz").classList.remove("paused");
+    $("btn-listen").disabled = true;
+
+    Array.prototype.forEach.call($("answers").children, function (b) { b.disabled = true; });
+
+    var best = loadBest();
+    if (state.score > best) {
+      best = state.score;
+      saveBest(best);
+    }
+
+    var medal, title;
+    if (state.score === 0)        { medal = "💪"; title = "Courage, ça viendra !"; }
+    else if (state.score < 8)    { medal = "📖"; title = "Continue à t'entraîner !"; }
+    else if (state.score < 14)   { medal = "👍"; title = "Pas mal !"; }
+    else if (state.score < 20)   { medal = "🥇"; title = "Excellent !"; }
+    else                         { medal = "🏆"; title = "Parfait, maestro !"; }
+
+    $("medal").textContent = medal;
+    $("end-title").textContent = title;
+    $("end-score").textContent = state.score;
+    $("end-best").innerHTML = state.score + " note" + (state.score > 1 ? "s" : "") +
+      " trouvée" + (state.score > 1 ? "s" : "") + " en 1 minute — meilleur score&nbsp;: <b>" + best + "</b>";
+    showScreen("end");
+  }
+
+  /* ================= Écoute de la note (indice) ================= */
+  $("btn-listen").addEventListener("click", function () {
+    if (state.note) playFreq(state.note.freq);
+  });
+
+  /* ================= Pause / Stop ================= */
+  $("btn-pause").addEventListener("click", togglePause);
+  $("btn-stop").addEventListener("click", function () {
+    if (state.running) endQuiz();
+  });
+
+  /* ================= Démarrage ================= */
+  recognition = initRecognition();
+  if (!recognition) {
+    var btnMicStart = $("btn-start-mic");
+    btnMicStart.disabled = true;
+    btnMicStart.textContent = "🎤 Micro non supporté par ce navigateur";
+  }
+
+  $("btn-start").addEventListener("click", function () { startQuiz("buttons"); });
+  $("btn-start-mic").addEventListener("click", function () { startQuiz("mic"); });
+  $("btn-replay").addEventListener("click", function () { startQuiz(state.mode); });
+  $("btn-mic").addEventListener("click", function () {
+    if (state.listening) { stopListening(); return; }
+    startListening();
+  });
+
+  /* ================= Service worker (PWA — fonctionne hors-ligne) =================
+     Enregistré uniquement quand la page est servie en HTTPS (GitHub Pages).
+     Si sw.js est absent, l'erreur est silencieuse : le site reste 100% fonctionnel. */
+  try {
+    if ("serviceWorker" in navigator &&
+        (location.protocol === "https:" || location.hostname === "localhost")) {
+      navigator.serviceWorker.register("sw.js").catch(function () { /* silencieux */ });
+    }
+  } catch (e) { /* pas de service worker : on ignore */ }
+})();
+</script>
+</body>
+</html>
