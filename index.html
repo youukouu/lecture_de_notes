@@ -75,24 +75,30 @@
     background: #fff; border-radius: 16px; padding: 8px 8px 4px;
     box-shadow: 0 6px 18px rgba(79, 70, 229, .12);
     display: flex; justify-content: center;
+    width: 100%;
   }
-  .card svg { width: 100%; max-width: 240px; height: auto; display: block; }
-  /* ---------- Indicateur de clé (collé à gauche de la portée) ---------- */
-  .staff-row {
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-  }
+  /* Bloc blanc de 340 px ; la portée reste fixe à 240 px, l'ensemble est centré */
+  .card svg { width: 240px; height: auto; display: block; }
+  /* ---------- Clé superposée à la portée (bords gauches alignés) ---------- */
+  .staff-row { display: flex; justify-content: center; }
+  .card-wrap { width: 340px; max-width: 100%; }
+  .portee { position: relative; width: 240px; }
   .clef-indicator {
+    position: absolute; left: 0; top: 50%; z-index: 2;
     display: flex; flex-direction: column; align-items: center;
-    gap: 2px; background: #fff; border-radius: 20px; padding: 14px 12px 10px;
-    box-shadow: 0 6px 18px rgba(79, 70, 229, .18); border: 2px solid #eef2ff;
-    flex: 0 0 auto;
+    background: transparent; padding: 0;
+    pointer-events: none;
   }
+  /* Réglages par clé : décalage vertical et taille du glyphe */
+  .clef-indicator.clef-sol { transform: translateY(calc(-50% + 18px)); }
+  .clef-indicator.clef-fa  { transform: translateY(calc(-50% - 5px)); }
   .clef-glyph {
     font-family: "Bravura", "Noto Music", "Segoe UI Symbol", "Apple Symbols", serif;
     font-size: 3.4rem; line-height: 1; color: #1e293b; display: block;
   }
+  .clef-indicator.clef-sol .clef-glyph { font-size: 14rem; }
+  .clef-indicator.clef-fa  .clef-glyph { font-size: 10rem; }
   .clef-glyph.pop { animation: pop .3s ease; }
-  .clef-name { font-size: .78rem; font-weight: 800; color: #4338ca; letter-spacing: .04em; }
 
   .hint-row { display: flex; justify-content: center; }
   .hint {
@@ -116,31 +122,6 @@
   #screen-quiz.paused .card,
   #screen-quiz.paused .answers,
   #screen-quiz.paused .clef-indicator { opacity: .55; }
-
-  /* ---------- Mode micro ---------- */
-  .mic-row { display: flex; }
-  .mic-btn {
-    border: none; border-radius: 16px; background: #64748b; color: #fff;
-    font-size: 1.05rem; font-weight: 800; min-height: 62px; width: 100%;
-    box-shadow: 0 3px 10px rgba(0,0,0,.14); cursor: pointer;
-    text-shadow: 0 1px 2px rgba(0,0,0,.25);
-    transition: transform .08s ease;
-  }
-  .mic-btn:active { transform: scale(.97); }
-  .mic-btn:disabled { opacity: .45; cursor: default; }
-  .mic-btn.listening { background: #475569; animation: mic-pulse 1.2s ease-in-out infinite; }
-  @keyframes mic-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(71, 85, 105, .45); }
-    50% { box-shadow: 0 0 0 10px rgba(71, 85, 105, 0); }
-  }
-  .secondary {
-    border: none; border-radius: 999px; padding: 13px 36px;
-    font-size: 1rem; font-weight: 800; color: #334155; cursor: pointer;
-    background: #e2e8f0; box-shadow: 0 4px 14px rgba(71, 85, 105, .25);
-    transition: transform .1s;
-  }
-  .secondary:active { transform: scale(.95); }
-  .secondary:disabled { opacity: .5; cursor: default; }
 
   /* ---------- Retour ---------- */
   .feedback {
@@ -182,6 +163,15 @@
   }
   .primary:active { transform: scale(.95); }
 
+  .secondary {
+    border: none; border-radius: 999px; padding: 13px 36px;
+    font-size: 1rem; font-weight: 800; color: #334155; cursor: pointer;
+    background: #e2e8f0; box-shadow: 0 4px 14px rgba(71, 85, 105, .25);
+    transition: transform .1s;
+  }
+  .secondary:active { transform: scale(.95); }
+  .secondary:disabled { opacity: .5; cursor: default; }
+
   /* ---------- Pied de page ---------- */
   .footer {
     margin-top: auto; padding-top: 14px; text-align: center;
@@ -197,11 +187,12 @@
     <div class="hero">
       <p class="logo">🎵</p>
       <h1>Lecture de notes</h1>
-      <p>Lis la note affichée sur la portée&nbsp;! La clé en cours (Sol ou Fa, choisie au hasard) est indiquée à gauche de l'écran, et les notes couvrent 2 octaves. Trouve un maximum de bonnes réponses en 1 minute&nbsp;! Réponds avec les boutons… ou à voix haute avec le micro 🎤.</p>
+      <p>Lis la note affichée sur la portée&nbsp;! La clé en cours (Sol ou Fa, choisie au hasard) est affichée sur la portée, et les notes couvrent 2 octaves. Choisis un mode de jeu et réponds avec les boutons de notes.</p>
     </div>
     <div style="text-align:center; margin-top:24px; display:flex; flex-direction:column; align-items:center; gap:12px;">
-      <button class="primary" id="btn-start">Commencer 🎼</button>
-      <button class="secondary" id="btn-start-mic">Commencer avec le micro 🎤</button>
+      <button class="primary" id="btn-start">⏱ Contre la montre (1 min)</button>
+      <button class="secondary" id="btn-start-dix">🎯 10 notes sans erreur</button>
+      <button class="secondary" id="btn-start-libre">♾️ Libre (sans limite)</button>
     </div>
   </section>
 
@@ -209,18 +200,24 @@
   <section id="screen-quiz" class="screen hidden">
     <div class="topbar">
       <span class="chip" id="time">⏱ 1:00</span>
-      <span class="chip">⭐ Score&nbsp;: <span id="score">0</span></span>
+      <span class="chip" id="score-chip">⭐ Score&nbsp;: <span id="score">0</span></span>
+      <button class="icon-btn" id="btn-home" aria-label="Retour au menu">🏠</button>
       <button class="icon-btn" id="btn-pause" aria-label="Mettre en pause">⏸</button>
       <button class="icon-btn" id="btn-stop" aria-label="Arrêter la partie">⏹</button>
     </div>
-    <div class="progress"><div id="progress-fill"></div></div>
+    <div class="progress" id="progress"><div id="progress-fill"></div></div>
 
     <div class="staff-row">
-      <div class="clef-indicator" id="clef-indicator">
-        <span class="clef-glyph" id="clef-glyph">𝄞</span>
-        <span class="clef-name" id="clef-name">Sol</span>
+      <div class="card-wrap">
+        <div class="card">
+          <div class="portee">
+            <div id="staff-card"></div>
+            <div class="clef-indicator" id="clef-indicator">
+              <span class="clef-glyph" id="clef-glyph">𝄞</span>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="card" id="staff-card"></div>
     </div>
 
     <div class="hint-row">
@@ -228,10 +225,6 @@
     </div>
 
     <div class="feedback" id="feedback">&nbsp;</div>
-
-    <div class="mic-row hidden" id="mic-row">
-      <button class="mic-btn" id="btn-mic">🎤 Appuie et dis la note</button>
-    </div>
 
     <div class="answers" id="answers"></div>
   </section>
@@ -243,7 +236,10 @@
       <h2 id="end-title">Bravo !</h2>
       <div class="score-big" id="end-score">0</div>
       <p id="end-best">Meilleur score&nbsp;: 0</p>
-      <button class="primary" id="btn-replay">Rejouer 🔁</button>
+      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <button class="primary" id="btn-replay">Rejouer 🔁</button>
+        <button class="secondary" id="btn-menu">🏠 Menu</button>
+      </div>
     </div>
   </section>
 
@@ -290,7 +286,7 @@
 
   var state = {
     note: null, score: 0, answered: false, running: false, paused: false,
-    mode: "buttons", listening: false,
+    mode: "chrono", streak: 0,
     endTime: 0, remaining: 0, tickId: null, prev: null
   };
 
@@ -319,100 +315,6 @@
     } catch (e) { /* audio indisponible : on ignore */ }
   }
 
-  /* ================= Reconnaissance vocale (Web Speech API) ================= */
-  var recognition = null;
-
-  // Mots reconnus (après normalisation) associés aux notes
-  var WORD_TO_NOTE = {
-    "do": "Do", "doh": "Do", "dos": "Do", "deau": "Do", "dau": "Do",
-    "re": "Ré", "rez": "Ré",
-    "mi": "Mi", "mie": "Mi", "my": "Mi",
-    "fa": "Fa", "fas": "Fa", "far": "Fa",
-    "sol": "Sol", "solle": "Sol",
-    "la": "La", "lah": "La", "las": "La",
-    "si": "Si", "six": "Si", "scie": "Si", "cis": "Si", "sie": "Si"
-  };
-
-  function normalizeSpeech(text) {
-    return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  }
-
-  function matchNote(strings) {
-    for (var s = 0; s < strings.length; s++) {
-      var tokens = strings[s].split(/[^a-z]+/);
-      for (var t = 0; t < tokens.length; t++) {
-        var note = WORD_TO_NOTE[tokens[t]];
-        if (note) return note;
-      }
-    }
-    return null;
-  }
-
-  function setMicListening(on) {
-    state.listening = on;
-    var b = $("btn-mic");
-    b.classList.toggle("listening", on);
-    b.textContent = on ? "🎙️ J'écoute… dis la note !" : "🎤 Appuie et dis la note";
-  }
-
-  function startListening() {
-    if (!state.running || state.paused || !recognition || state.listening) return;
-    try { recognition.start(); setMicListening(true); }
-    catch (e) { /* déjà en écoute */ }
-  }
-
-  function stopListening() {
-    if (recognition && state.listening) {
-      try { recognition.stop(); } catch (e) {}
-      setMicListening(false);
-    }
-  }
-
-  // Relance automatiquement l'écoute pour la note suivante
-  function micRestart() {
-    setTimeout(function () {
-      if (state.running && !state.paused && state.mode === "mic" && !state.listening) {
-        startListening();
-      }
-    }, 400);
-  }
-
-  function initRecognition() {
-    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return null;
-    var rec = new SR();
-    rec.lang = "fr-FR";
-    rec.interimResults = false;
-    rec.maxAlternatives = 3;
-    rec.continuous = false;
-    rec.onresult = function (e) {
-      if (!state.running || state.paused) return;
-      // On rassemble toutes les alternatives reconnues, puis on cherche une note
-      var strings = [];
-      for (var i = 0; i < e.results[0].length; i++) {
-        strings.push(normalizeSpeech(e.results[0][i].transcript));
-      }
-      var label = matchNote(strings);
-      if (label) {
-        answer(label);
-        micRestart();
-      } else {
-        $("feedback").textContent = "🤔 Je n'ai pas compris — redis la note";
-        $("feedback").className = "feedback";
-      }
-    };
-    rec.onerror = function (ev) {
-      setMicListening(false);
-      if (ev && (ev.error === "not-allowed" || ev.error === "service-not-allowed")) {
-        $("feedback").textContent = "⛔ Accès au micro refusé";
-      } else if (ev && ev.error === "no-speech") {
-        $("feedback").textContent = "🤭 Rien entendu — appuie et redis";
-      }
-    };
-    rec.onend = function () { setMicListening(false); };
-    return rec;
-  }
-
   /* ================= Dessin de la portée (SVG) ================= */
 
   // Lignes supplémentaires entre la note et la portée.
@@ -430,7 +332,7 @@
 
   function staffSVG(note) {
     var NS = "http://www.w3.org/2000/svg";
-    var x = 122; // position horizontale de la note
+    var x = 141; // position horizontale de la note
 
     var lines = [60, 90, 120, 150, 180].map(function (y) {
       return '<line x1="30" y1="' + y + '" x2="192" y2="' + y + '" stroke="#334155" stroke-width="2"/>';
@@ -481,6 +383,13 @@
     return m + ":" + (s < 10 ? "0" + s : s);
   }
 
+  // Affiche la progression du mode « 10 notes sans erreur »
+  function updateModeDisplay() {
+    if (state.mode === "dix") {
+      $("time").textContent = "🎯 " + state.streak + "/10";
+    }
+  }
+
   function startTimer() {
     state.endTime = Date.now() + DURATION * 1000;
     $("time").classList.remove("time-low");
@@ -507,7 +416,6 @@
   function setPlayingEnabled(on) {
     Array.prototype.forEach.call($("answers").children, function (b) { b.disabled = !on; });
     $("btn-listen").disabled = !on;
-    $("btn-mic").disabled = !on;
   }
 
   function togglePause() {
@@ -518,7 +426,6 @@
       state.remaining = Math.max(0, state.endTime - Date.now());
       state.paused = true;
       clearInterval(state.tickId);
-      stopListening();
       $("btn-pause").textContent = "▶";
       screen.classList.add("paused");
       setPlayingEnabled(false);
@@ -531,32 +438,34 @@
       screen.classList.remove("paused");
       setPlayingEnabled(true);
       $("feedback").textContent = "\u00a0";
-      resumeTimer();
+      if (state.mode === "chrono") resumeTimer();
     }
   }
 
   function startQuiz(mode) {
+    state.mode = mode || "chrono";
+    state.streak = 0;
     state.score = 0;
     state.answered = false;
     state.running = true;
     state.paused = false;
-    state.mode = mode || "buttons";
-    state.listening = false;
     state.prev = null;
     $("btn-pause").textContent = "⏸";
     $("screen-quiz").classList.remove("paused");
     $("btn-listen").disabled = false;
-    setMicListening(false);
-    $("mic-row").classList.toggle("hidden", state.mode !== "mic");
-    $("answers").classList.toggle("hidden", state.mode === "mic");
     $("score").textContent = "0";
     $("progress-fill").style.width = "0%";
     $("feedback").textContent = "\u00a0";
     $("feedback").className = "feedback";
+    // Affichage propre à chaque mode
+    $("time").classList.toggle("hidden", state.mode === "libre");
+    $("score-chip").classList.toggle("hidden", state.mode === "dix");
+    $("progress").style.display = state.mode === "libre" ? "none" : "";
+    updateModeDisplay();
     buildAnswerButtons();
     showScreen("quiz");
     renderQuestion();
-    startTimer();
+    if (state.mode === "chrono") startTimer();
   }
 
   function buildAnswerButtons() {
@@ -579,7 +488,9 @@
 
     // Mise à jour du badge de clé, à gauche de l'écran
     $("clef-glyph").textContent = state.note.clef === "sol" ? "\uD834\uDD1E" : "\uD834\uDD22";
-    $("clef-name").textContent = state.note.clef === "sol" ? "Sol" : "Fa";
+    var indicator = $("clef-indicator");
+    indicator.classList.toggle("clef-sol", state.note.clef === "sol");
+    indicator.classList.toggle("clef-fa", state.note.clef === "fa");
     var glyph = $("clef-glyph");
     glyph.classList.remove("pop");
     void glyph.offsetWidth;
@@ -601,22 +512,37 @@
     var ok = label === expected.label;
 
     if (ok) {
-      state.score++;
-      $("score").textContent = state.score;
-      fb.textContent = "✅ Bonne réponse : " + full + " !";
-      fb.className = "feedback ok";
       playFreq(expected.freq);
+      if (state.mode === "dix") {
+        state.streak++;
+        updateModeDisplay();
+        $("progress-fill").style.width = (state.streak * 10) + "%";
+        if (state.streak >= 10) {
+          endQuiz(); // objectif atteint : écran final immédiat
+          return;
+        }
+        fb.textContent = "✅ Bonne réponse : " + full + " ! (" + state.streak + "/10)";
+      } else {
+        state.score++;
+        $("score").textContent = state.score;
+        fb.textContent = "✅ Bonne réponse : " + full + " !";
+      }
+      fb.className = "feedback ok";
     } else {
-      fb.textContent = "❌ Mauvaise réponse — c'était " + full;
+      if (state.mode === "dix") {
+        state.streak = 0;
+        updateModeDisplay();
+        $("progress-fill").style.width = "0%";
+        fb.textContent = "❌ C'était " + full + " — série remise à zéro !";
+      } else {
+        fb.textContent = "❌ Mauvaise réponse — c'était " + full;
+      }
       fb.className = "feedback ko";
     }
 
     // La note suivante s'affiche immédiatement, sans attente.
     // Le message de retour reste affiché jusqu'à la réponse suivante.
     renderQuestion();
-
-    // En mode micro, on relance l'écoute pour la note suivante
-    if (state.mode === "mic") micRestart();
   }
 
   /* ================= Meilleur score ================= */
@@ -633,31 +559,48 @@
     state.running = false;
     state.paused = false;
     clearInterval(state.tickId);
-    stopListening();
     $("btn-pause").textContent = "⏸";
     $("screen-quiz").classList.remove("paused");
     $("btn-listen").disabled = true;
 
     Array.prototype.forEach.call($("answers").children, function (b) { b.disabled = true; });
 
-    var best = loadBest();
-    if (state.score > best) {
-      best = state.score;
-      saveBest(best);
-    }
+    var medal, title, scoreText, subText;
 
-    var medal, title;
-    if (state.score === 0)        { medal = "💪"; title = "Courage, ça viendra !"; }
-    else if (state.score < 8)    { medal = "📖"; title = "Continue à t'entraîner !"; }
-    else if (state.score < 14)   { medal = "👍"; title = "Pas mal !"; }
-    else if (state.score < 20)   { medal = "🥇"; title = "Excellent !"; }
-    else                         { medal = "🏆"; title = "Parfait, maestro !"; }
+    if (state.mode === "dix") {
+      var won = state.streak >= 10;
+      medal = won ? "🏆" : "🎯";
+      title = won ? "Sans faute, bravo !" : "Objectif non atteint…";
+      scoreText = state.streak + " / 10";
+      subText = won
+        ? "10 notes trouvées d'affilée, sans aucune erreur !"
+        : "Meilleure série : " + state.streak + " — retente ta chance !";
+    } else if (state.mode === "libre") {
+      medal = state.score === 0 ? "💪" : "🎼";
+      title = "Session libre terminée";
+      scoreText = String(state.score);
+      subText = state.score + " note" + (state.score > 1 ? "s" : "") +
+        " trouvée" + (state.score > 1 ? "s" : "") + " — bon entraînement !";
+    } else {
+      var best = loadBest();
+      if (state.score > best) {
+        best = state.score;
+        saveBest(best);
+      }
+      if (state.score === 0)      { medal = "💪"; title = "Courage, ça viendra !"; }
+      else if (state.score < 8)  { medal = "📖"; title = "Continue à t'entraîner !"; }
+      else if (state.score < 14) { medal = "👍"; title = "Pas mal !"; }
+      else if (state.score < 20) { medal = "🥇"; title = "Excellent !"; }
+      else                        { medal = "🏆"; title = "Parfait, maestro !"; }
+      scoreText = String(state.score);
+      subText = state.score + " note" + (state.score > 1 ? "s" : "") +
+        " trouvée" + (state.score > 1 ? "s" : "") + " en 1 minute — meilleur score&nbsp;: <b>" + best + "</b>";
+    }
 
     $("medal").textContent = medal;
     $("end-title").textContent = title;
-    $("end-score").textContent = state.score;
-    $("end-best").innerHTML = state.score + " note" + (state.score > 1 ? "s" : "") +
-      " trouvée" + (state.score > 1 ? "s" : "") + " en 1 minute — meilleur score&nbsp;: <b>" + best + "</b>";
+    $("end-score").textContent = scoreText;
+    $("end-best").innerHTML = subText;
     showScreen("end");
   }
 
@@ -666,27 +609,27 @@
     if (state.note) playFreq(state.note.freq);
   });
 
-  /* ================= Pause / Stop ================= */
+  /* ================= Pause / Stop / Menu ================= */
   $("btn-pause").addEventListener("click", togglePause);
   $("btn-stop").addEventListener("click", function () {
     if (state.running) endQuiz();
   });
 
-  /* ================= Démarrage ================= */
-  recognition = initRecognition();
-  if (!recognition) {
-    var btnMicStart = $("btn-start-mic");
-    btnMicStart.disabled = true;
-    btnMicStart.textContent = "🎤 Micro non supporté par ce navigateur";
+  // Retour direct au menu (sans passer par l'écran final)
+  function goMenu() {
+    state.running = false;
+    state.paused = false;
+    clearInterval(state.tickId);
+    showScreen("start");
   }
+  $("btn-home").addEventListener("click", goMenu);
+  $("btn-menu").addEventListener("click", goMenu);
 
-  $("btn-start").addEventListener("click", function () { startQuiz("buttons"); });
-  $("btn-start-mic").addEventListener("click", function () { startQuiz("mic"); });
+  /* ================= Démarrage ================= */
+  $("btn-start").addEventListener("click", function () { startQuiz("chrono"); });
+  $("btn-start-dix").addEventListener("click", function () { startQuiz("dix"); });
+  $("btn-start-libre").addEventListener("click", function () { startQuiz("libre"); });
   $("btn-replay").addEventListener("click", function () { startQuiz(state.mode); });
-  $("btn-mic").addEventListener("click", function () {
-    if (state.listening) { stopListening(); return; }
-    startListening();
-  });
 
   /* ================= Service worker (PWA — fonctionne hors-ligne) =================
      Enregistré uniquement quand la page est servie en HTTPS (GitHub Pages).
