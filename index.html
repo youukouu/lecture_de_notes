@@ -633,10 +633,18 @@
 
   /* ================= Service worker (PWA — fonctionne hors-ligne) =================
      Enregistré uniquement quand la page est servie en HTTPS (GitHub Pages).
-     Si sw.js est absent, l'erreur est silencieuse : le site reste 100% fonctionnel. */
+     Si sw.js est absent, l'erreur est silencieuse : le site reste 100% fonctionnel.
+     Quand une nouvelle version du site est activée (nouveau service worker),
+     la page se recharge automatiquement une seule fois : les utilisateurs
+     ont toujours la dernière version, sans vider le cache du navigateur. */
   try {
     if ("serviceWorker" in navigator &&
         (location.protocol === "https:" || location.hostname === "localhost")) {
+      var hadController = !!navigator.serviceWorker.controller;
+      var swReloaded = false;
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (hadController && !swReloaded) { swReloaded = true; location.reload(); }
+      });
       navigator.serviceWorker.register("sw.js").catch(function () { /* silencieux */ });
     }
   } catch (e) { /* pas de service worker : on ignore */ }

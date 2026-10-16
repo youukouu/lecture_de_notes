@@ -1,5 +1,7 @@
-/* Service worker de Lecture de notes — cache hors-ligne (PWA). */
-const CACHE = "lecture-notes-v1";
+/* Service worker de Lecture de notes — cache hors-ligne (PWA).
+   Stratégie « réseau d'abord » : quand l'utilisateur est en ligne, il a
+   toujours la dernière version publiée ; le cache ne sert que hors-ligne. */
+const CACHE = "lecture-notes-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -28,15 +30,16 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith(
-    caches.match(event.request, { ignoreSearch: true }).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
-        if (response.ok && new URL(event.request.url).origin === self.location.origin) {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(event.request, copy));
-        }
-        return response;
-      }).catch(() => caches.match("./index.html"));
-    })
+    fetch(event.request).then((response) => {
+      // En ligne : on sert la version du réseau et on rafraîchit le cache.
+      if (response.ok && new URL(event.request.url).origin === self.location.origin) {
+        const copy = response.clone();
+        caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+      }
+      return response;
+    }).catch(() =>
+      // Hors-ligne : on retombe sur le cache (puis sur index.html).
+      caches.match(event.request, { ignoreSearch: true }).then((cached) => cached || caches.match("./index.html"))
+    )
   );
 });
